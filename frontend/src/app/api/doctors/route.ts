@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 export async function GET() {
   const db = getDb();
   const doctors = db.prepare("SELECT * FROM doctors").all();
-  const result = doctors.map((d) => ({
+  const result = doctors.map((d: any) => ({
     ...d,
     languages: d.languages ? d.languages.split(",") : [],
     available_days: d.available_days ? d.available_days.split(",") : [],
