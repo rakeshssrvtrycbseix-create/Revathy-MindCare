@@ -3,12 +3,14 @@ const nodemailer = require("nodemailer");
 
 // ─── Gmail SMTP Transport ──────────────────────────────────────────────────
 const transporter =
-  process.env.EMAIL_USER && process.env.EMAIL_APP_PASSWORD
+  process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
     ? nodemailer.createTransport({
-        service: "gmail",
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "465"),
+        secure: process.env.SMTP_PORT === "465", // true for 465, false for other ports
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_APP_PASSWORD,
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
         },
       })
     : null;
@@ -88,7 +90,7 @@ async function sendBookingEmails({
 
   try {
     await transporter.sendMail({
-      from: `"Revathy Mind Care" <${process.env.EMAIL_USER}>`,
+      from: `"Revathy Mind Care" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
       to: adminEmail,
       subject: `📅 New Booking #${appointmentId} — ${patientName} with ${doctorName}`,
       html: adminHTML,
@@ -140,7 +142,7 @@ async function sendBookingEmails({
 
     try {
       await transporter.sendMail({
-        from: `"Revathy Mind Care" <${process.env.EMAIL_USER}>`,
+        from: `"Revathy Mind Care" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
         to: patientEmail,
         subject: `✅ Booking Confirmed — ${formattedDate} at ${formattedTime} | Revathy Mind Care`,
         html: patientHTML,

@@ -19,7 +19,7 @@ import {
   Clock,
 } from "lucide-react";
 
-const API = "http://localhost:5000/api";
+const API = "/api";
 
 interface Stats {
   totalAppointments: number;
