@@ -572,39 +572,46 @@ function BookingContent() {
               </div>
             </div>
 
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 mb-8 max-w-md mx-auto">
-              💬 A WhatsApp confirmation has been sent to your mobile number.
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 mb-8 max-w-md mx-auto text-center font-medium">
+              ✅ Booking Confirmed! We have sent a confirmation to your email.
+              <br />
+              <span className="text-xs mt-1 block opacity-80">Please message us on WhatsApp to finalize your session details.</span>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <div className="flex flex-col gap-4 items-center">
               <a
-                href="https://wa.me/qr/TCJFIYJ4T7Q3F1"
+                href={`https://wa.me/919159715236?text=${encodeURIComponent(
+                  `Hello Revathy Mind Care! 🧠\n\nI just booked an appointment:\n\n📅 Date: ${formatDate(result.appointment_date)}\n🕒 Time: ${formatTime(result.appointment_time)}\n👤 Patient: ${result.patient_name}\n🩺 Doctor: ${result.doctor_name}\n🆔 ID: #${result.appointment_id}\n\nPlease confirm my session. Thank you! ✅`
+                )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all"
+                className="flex items-center justify-center gap-3 bg-[#25D366] hover:bg-green-600 text-white font-bold px-10 py-5 rounded-2xl transition-all shadow-[0_10px_25px_-5px_rgba(37,211,102,0.4)] hover:shadow-[0_15px_35px_-5px_rgba(37,211,102,0.5)] active:scale-95 animate-pulse w-full max-w-sm text-lg"
               >
-                💬 Message on WhatsApp
+                <span className="text-2xl">💬</span> Message on WhatsApp
               </a>
-              <button
-                onClick={() => {
-                  setStep(1);
-                  setDoctorId(0);
-                  setSelectedDate("");
-                  setSlots([]);
-                  setSelectedSlot(null);
-                  setForm({ name: "", phone: "", email: "", reason: "" });
-                  setResult(null);
-                }}
-                className="flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold px-6 py-3 rounded-xl transition-all"
-              >
-                Book Another Session
-              </button>
-              <Link
-                href="/"
-                className="flex items-center justify-center gap-2 bg-[#4A90E2] hover:bg-[#2563eb] text-white font-semibold px-6 py-3 rounded-xl transition-all"
-              >
-                Go to Home
-              </Link>
+              
+              <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setDoctorId(0);
+                    setSelectedDate("");
+                    setSlots([]);
+                    setSelectedSlot(null);
+                    setForm({ name: "", phone: "", email: "", reason: "" });
+                    setResult(null);
+                  }}
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 text-gray-500 font-semibold px-6 py-3 rounded-xl transition-all text-sm"
+                >
+                  Book Another Session
+                </button>
+                <Link
+                  href="/"
+                  className="flex items-center justify-center gap-2 bg-[#4A90E2] hover:bg-[#2563eb] text-white font-semibold px-6 py-3 rounded-xl transition-all text-sm"
+                >
+                  Go to Home
+                </Link>
+              </div>
             </div>
           </div>
         )}
