@@ -12,7 +12,7 @@ export async function GET() {
     languages: d.languages ? d.languages.split(",") : [],
     available_days: d.available_days ? d.available_days.split(",") : [],
     specialties: d.specialization
-      ? d.specialization.split(",").map((s) => s.trim())
+      ? d.specialization.split(",").map((s: string) => s.trim())
       : [],
   }));
   return NextResponse.json(result);

@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     languages: doctor.languages ? doctor.languages.split(",") : [],
     available_days: doctor.available_days ? doctor.available_days.split(",") : [],
     specialties: doctor.specialization
-      ? doctor.specialization.split(",").map((s) => s.trim())
+      ? doctor.specialization.split(",").map((s: string) => s.trim())
       : [],
   });
 }

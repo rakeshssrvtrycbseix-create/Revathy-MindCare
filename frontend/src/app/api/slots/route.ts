@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     )
     .all(doctor_id, date);
 
-  const formatted = slots.map((s) => ({
+  const formatted = slots.map((s: any) => ({
     id: s.id,
     time: s.time,
     display: formatTime(s.time),
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   return NextResponse.json(formatted);
 }
 
-function formatTime(time24) {
+function formatTime(time24: string) {
   const [h, m] = time24.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
