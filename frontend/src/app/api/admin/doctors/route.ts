@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 
-function verifyAdmin(req: Request) {
+async function verifyAdmin(req: Request) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) throw new Error("Unauthorized");
@@ -13,19 +13,30 @@ function verifyAdmin(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    verifyAdmin(req);
+    await verifyAdmin(req);
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
-  const query = `
-    SELECT d.*, COUNT(a.id) as appointment_count
-    FROM doctors d
-    LEFT JOIN appointments a ON d.id = a.doctor_id
-    GROUP BY d.id
-  `;
-  const doctors = db.prepare(query).all();
+  // Get doctors with appointment counts
+  const { data: doctors, error } = await supabase
+    .from("doctors")
+    .select(`
+      *,
+      appointments (
+        id
+      )
+    `);
 
-  return NextResponse.json(doctors);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Map to match the old structure
+  const result = (doctors || []).map((d: any) => ({
+    ...d,
+    appointment_count: d.appointments?.length || 0,
+  }));
+
+  return NextResponse.json(result);
 }
