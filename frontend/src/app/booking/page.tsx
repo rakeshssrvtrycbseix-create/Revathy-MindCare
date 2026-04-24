@@ -19,33 +19,12 @@ import {
 
 const API = "/api";
 
-const DOCTORS = [
-  {
-    id: 1,
-    name: "Mr. Praveen Ravi",
-    role: "Founder & Counselling Psychologist",
-    photo: "/doctors/praveen-ravi.jpeg",
-  },
-  { id: 2, name: "Dr. Pavithra S", role: "General Physician", photo: "/doctors/pavithra.jpeg" },
-  {
-    id: 3,
-    name: "Ms. Nivetha S",
-    role: "Counselling Psychologist",
-    photo: "/doctors/nivetha.jpeg",
-  },
-  {
-    id: 4,
-    name: "Ms. M. Yalini",
-    role: "Psychologist",
-    photo: "/doctors/yalini.jpeg",
-  },
-  {
-    id: 5,
-    name: "Ms. Krupa Elsa Abraham",
-    role: "Social Worker & Counsellor",
-    photo: "/doctors/krupa.jpeg",
-  },
-];
+interface Doctor {
+  id: number;
+  name: string;
+  role: string;
+  photo_url: string;
+}
 
 interface Slot {
   id: number;
@@ -92,6 +71,8 @@ function BookingContent() {
     ? parseInt(searchParams.get("doctor")!)
     : 0;
 
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [doctorId, setDoctorId] = useState(preselectedDoctorId || 0);
   const [selectedDate, setSelectedDate] = useState("");
@@ -108,7 +89,20 @@ function BookingContent() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<BookingResult | null>(null);
 
-  const selectedDoctor = DOCTORS.find((d) => d.id === doctorId);
+  const selectedDoctor = doctors.find((d) => d.id === doctorId);
+
+  // Fetch doctors on mount
+  useEffect(() => {
+    fetch(`${API}/doctors`)
+      .then((r) => r.json())
+      .then((data) => {
+        setDoctors(data);
+        setDoctorsLoading(false);
+      })
+      .catch(() => {
+        setDoctorsLoading(false);
+      });
+  }, []);
 
   // Auto-advance to step 2 if doctor preselected
   useEffect(() => {
@@ -229,39 +223,46 @@ function BookingContent() {
               Counsellor
             </h2>
             <div className="space-y-3">
-              {DOCTORS.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => setDoctorId(d.id)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${doctorId === d.id ? "border-[#4A90E2] bg-[#f0f9ff]" : "border-gray-100 hover:border-[#4A90E2]/40 hover:bg-gray-50"}`}
-                >
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 shrink-0">
-                    {d.photo ? (
-                      <Image
-                        src={d.photo}
-                        alt={d.name}
-                        fill
-                        className="object-cover object-top"
-                        sizes="48px"
+              {doctorsLoading ? (
+                <div className="flex flex-col items-center py-10 text-gray-400">
+                  <Loader2 className="animate-spin mb-2" size={32} />
+                  <p>Loading counsellors...</p>
+                </div>
+              ) : (
+                doctors.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => setDoctorId(d.id)}
+                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${doctorId === d.id ? "border-[#4A90E2] bg-[#f0f9ff]" : "border-gray-100 hover:border-[#4A90E2]/40 hover:bg-gray-50"}`}
+                  >
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 shrink-0">
+                      {d.photo_url ? (
+                        <Image
+                          src={d.photo_url}
+                          alt={d.name}
+                          fill
+                          className="object-cover object-top"
+                          sizes="48px"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl">
+                          👩‍⚕️
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-[#1e293b]">{d.name}</p>
+                      <p className="text-sm text-gray-500">{d.role}</p>
+                    </div>
+                    {doctorId === d.id && (
+                      <CheckCircle2
+                        className="text-[#4A90E2] shrink-0"
+                        size={20}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xl">
-                        👩‍⚕️
-                      </div>
                     )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-[#1e293b]">{d.name}</p>
-                    <p className="text-sm text-gray-500">{d.role}</p>
-                  </div>
-                  {doctorId === d.id && (
-                    <CheckCircle2
-                      className="text-[#4A90E2] shrink-0"
-                      size={20}
-                    />
-                  )}
-                </button>
-              ))}
+                  </button>
+                ))
+              )}
             </div>
             <button
               disabled={!doctorId}

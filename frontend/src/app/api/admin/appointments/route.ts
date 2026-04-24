@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 
-function verifyAdmin(req: Request) {
+async function verifyAdmin(req: Request) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) throw new Error("Unauthorized");
@@ -13,19 +13,33 @@ function verifyAdmin(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    verifyAdmin(req);
+    await verifyAdmin(req);
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
-  const query = `
-    SELECT a.*, d.name as doctor_name, d.role as doctor_role 
-    FROM appointments a
-    JOIN doctors d ON a.doctor_id = d.id
-    ORDER BY a.appointment_date DESC, a.appointment_time DESC
-  `;
-  const appointments = db.prepare(query).all();
+  const { data: appointments, error } = await supabase
+    .from("appointments")
+    .select(`
+      *,
+      doctors (
+        name,
+        role
+      )
+    `)
+    .order("appointment_date", { ascending: false })
+    .order("appointment_time", { ascending: false });
 
-  return NextResponse.json(appointments);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Flatten the response
+  const result = (appointments || []).map((a: any) => ({
+    ...a,
+    doctor_name: a.doctors?.name,
+    doctor_role: a.doctors?.role,
+  }));
+
+  return NextResponse.json(result);
 }

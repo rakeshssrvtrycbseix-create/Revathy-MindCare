@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -10,23 +10,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "doctor_id and date are required" }, { status: 400 });
   }
 
-  const db = getDb();
-  const slots = db
-    .prepare(
-      `
-    SELECT id, time, is_booked
-    FROM time_slots
-    WHERE doctor_id = ? AND date = ?
-    ORDER BY time ASC
-  `
-    )
-    .all(doctor_id, date);
+  const { data: slots, error } = await supabase
+    .from("time_slots")
+    .select("id, time, is_booked")
+    .eq("doctor_id", doctor_id)
+    .eq("date", date)
+    .order("time", { ascending: true });
 
-  const formatted = slots.map((s: any) => ({
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const formatted = (slots || []).map((s: any) => ({
     id: s.id,
     time: s.time,
     display: formatTime(s.time),
-    available: s.is_booked === 0,
+    available: s.is_booked === false,
   }));
 
   return NextResponse.json(formatted);

@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 
 export async function GET() {
-  const db = getDb();
-  const doctors = db.prepare("SELECT * FROM doctors").all();
-  const result = doctors.map((d: any) => ({
+  const { data: doctors, error } = await supabase.from("doctors").select("*");
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const result = (doctors || []).map((d: any) => ({
     ...d,
     languages: d.languages ? d.languages.split(",") : [],
     available_days: d.available_days ? d.available_days.split(",") : [],
@@ -44,24 +48,28 @@ export async function POST(req: Request) {
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
-  const db = getDb();
-  const stmt = db.prepare(`
-    INSERT INTO doctors (name, qualification, role, specialization, description, photo_url, languages, available_days, timings, phone)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const result = stmt.run(
-    name,
-    qualification,
-    role,
-    specialization,
-    description,
-    photo_url || "",
-    languages,
-    available_days,
-    timings || "17:00-22:00",
-    phone || "",
-  );
-  
-  const newDoctor = db.prepare("SELECT * FROM doctors WHERE id = ?").get(result.lastInsertRowid);
-  return NextResponse.json(newDoctor, { status: 201 });
+  const { data, error } = await supabase
+    .from("doctors")
+    .insert([
+      {
+        name,
+        qualification,
+        role,
+        specialization,
+        description,
+        photo_url: photo_url || "",
+        languages,
+        available_days,
+        timings: timings || "17:00-22:00",
+        phone: phone || "",
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data, { status: 201 });
 }
