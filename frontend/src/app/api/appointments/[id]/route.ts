@@ -1,22 +1,33 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
   
-  const appt = db
-    .prepare(
-      `
-    SELECT a.*, d.name as doctor_name, d.role as doctor_role, d.photo_url
-    FROM appointments a
-    JOIN doctors d ON a.doctor_id = d.id
-    WHERE a.id = ?
-  `
-    )
-    .get(id);
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .select(`
+      *,
+      doctors (
+        name,
+        role,
+        photo_url
+      )
+    `)
+    .eq("id", id)
+    .single();
 
-  if (!appt) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  if (error || !appt) {
+    return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+
+  // Flatten the response to match the old structure
+  const result = {
+    ...appt,
+    doctor_name: appt.doctors?.name,
+    doctor_role: appt.doctors?.role,
+    photo_url: appt.doctors?.photo_url,
+  };
   
-  return NextResponse.json(appt);
+  return NextResponse.json(result);
 }
