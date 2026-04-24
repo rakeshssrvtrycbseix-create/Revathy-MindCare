@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { sendBookingEmails } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -17,58 +17,78 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const db = getDb();
+  // 1. Try to mark the slot as booked atomically
+  // This prevents double booking even without an explicit transaction block
+  const { data: updatedSlot, error: slotError } = await supabase
+    .from("time_slots")
+    .update({ is_booked: true })
+    .match({ 
+      doctor_id: doctor_id, 
+      date: appointment_date, 
+      time: appointment_time,
+      is_booked: false 
+    })
+    .select()
+    .single();
 
-  // Check the slot exists and is available
-  const slot = db
-    .prepare("SELECT * FROM time_slots WHERE doctor_id = ? AND date = ? AND time = ?")
-    .get(doctor_id, appointment_date, appointment_time);
-
-  if (!slot) {
-    return NextResponse.json({ error: "Time slot not found for this doctor on the selected date" }, { status: 404 });
+  if (slotError || !updatedSlot) {
+    return NextResponse.json(
+      { error: "This time slot is no longer available. Please choose another." },
+      { status: 409 }
+    );
   }
 
-  if (slot.is_booked) {
-    return NextResponse.json({ error: "This time slot is already booked. Please choose another slot." }, { status: 409 });
+  // 2. Insert the appointment
+  const { data: appointment, error: apptError } = await supabase
+    .from("appointments")
+    .insert([
+      {
+        patient_name,
+        patient_phone,
+        patient_email: patient_email || "",
+        doctor_id,
+        appointment_date,
+        appointment_time,
+        reason: reason || "",
+        status: "confirmed",
+      },
+    ])
+    .select()
+    .single();
+
+  if (apptError) {
+    // Rollback slot if appointment fails
+    await supabase.from("time_slots").update({ is_booked: false }).eq("id", updatedSlot.id);
+    return NextResponse.json({ error: apptError.message }, { status: 500 });
   }
 
-  // Atomic transaction
-  const bookAppointment = db.transaction(() => {
-    db.prepare("UPDATE time_slots SET is_booked = 1 WHERE id = ?").run(slot.id);
+  // 3. Get doctor details for Email
+  const { data: doctor } = await supabase
+    .from("doctors")
+    .select("*")
+    .eq("id", doctor_id)
+    .single();
 
-    const result = db
-      .prepare(
-        `INSERT INTO appointments (patient_name, patient_phone, patient_email, doctor_id, appointment_date, appointment_time, reason, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')`
-      )
-      .run(patient_name, patient_phone, patient_email || "", doctor_id, appointment_date, appointment_time, reason || "");
-
-    return result.lastInsertRowid;
-  });
-
-  const appointmentId = bookAppointment();
-
-  // Get doctor details for Email
-  const doctor = db.prepare("SELECT * FROM doctors WHERE id = ?").get(doctor_id);
-
-  // Send email notifications (async, non-blocking)
-  sendBookingEmails({
-    patientName: patient_name,
-    patientPhone: patient_phone,
-    patientEmail: patient_email || "",
-    doctorName: doctor.name,
-    doctorRole: doctor.role,
-    appointmentDate: appointment_date,
-    appointmentTime: appointment_time,
-    reason: reason || "",
-    appointmentId,
-  }).catch((e) => console.error("Email error:", e.message));
+  if (doctor) {
+    // Send email notifications (async, non-blocking)
+    sendBookingEmails({
+      patientName: patient_name,
+      patientPhone: patient_phone,
+      patientEmail: patient_email || "",
+      doctorName: doctor.name,
+      doctorRole: doctor.role,
+      appointmentDate: appointment_date,
+      appointmentTime: appointment_time,
+      reason: reason || "",
+      appointmentId: appointment.id,
+    }).catch((e) => console.error("Email error:", e.message));
+  }
 
   return NextResponse.json({
     message: "Appointment booked successfully!",
-    appointment_id: appointmentId,
+    appointment_id: appointment.id,
     patient_name,
-    doctor_name: doctor.name,
+    doctor_name: doctor?.name || "Doctor",
     appointment_date,
     appointment_time,
     status: "confirmed",
@@ -81,31 +101,34 @@ export async function GET(req: Request) {
   const doctor_id = searchParams.get("doctor_id");
   const status = searchParams.get("status");
 
-  let query = `
-    SELECT a.*, d.name as doctor_name, d.role as doctor_role, d.photo_url
-    FROM appointments a
-    JOIN doctors d ON a.doctor_id = d.id
-    WHERE 1=1
-  `;
-  const params = [];
+  let query = supabase
+    .from("appointments")
+    .select(`
+      *,
+      doctors (
+        name,
+        role,
+        photo_url
+      )
+    `);
 
-  if (date) {
-    query += " AND a.appointment_date = ?";
-    params.push(date);
-  }
-  if (doctor_id) {
-    query += " AND a.doctor_id = ?";
-    params.push(doctor_id);
-  }
-  if (status) {
-    query += " AND a.status = ?";
-    params.push(status);
+  if (date) query = query.eq("appointment_date", date);
+  if (doctor_id) query = query.eq("doctor_id", doctor_id);
+  if (status) query = query.eq("status", status);
+
+  const { data: appointments, error } = await query.order("appointment_date", { ascending: false }).order("appointment_time", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  query += " ORDER BY a.appointment_date DESC, a.appointment_time DESC";
+  // Flatten the response to match the old SQLite structure if needed
+  const result = (appointments || []).map((a: any) => ({
+    ...a,
+    doctor_name: a.doctors?.name,
+    doctor_role: a.doctors?.role,
+    photo_url: a.doctors?.photo_url,
+  }));
 
-  const db = getDb();
-  const appointments = db.prepare(query).all(...params);
-  
-  return NextResponse.json(appointments);
+  return NextResponse.json(result);
 }

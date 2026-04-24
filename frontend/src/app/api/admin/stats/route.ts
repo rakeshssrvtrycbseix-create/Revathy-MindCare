@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 
-function verifyAdmin(req: Request) {
+async function verifyAdmin(req: Request) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) throw new Error("Unauthorized");
@@ -13,27 +13,35 @@ function verifyAdmin(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    verifyAdmin(req);
+    await verifyAdmin(req);
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getDb();
   const today = new Date().toISOString().split("T")[0];
 
-  const totalAppts = db.prepare("SELECT COUNT(*) as count FROM appointments").get().count;
-  const todayAppts = db.prepare("SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ?").get(today).count;
-  const confirmedAppts = db.prepare("SELECT COUNT(*) as count FROM appointments WHERE status = 'confirmed'").get().count;
-  const cancelledAppts = db.prepare("SELECT COUNT(*) as count FROM appointments WHERE status = 'cancelled'").get().count;
-  const upcomingAppts = db.prepare("SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status = 'confirmed'").get(today).count;
-  const totalDoctors = db.prepare("SELECT COUNT(*) as count FROM doctors").get().count;
+  const [
+    { count: totalAppts },
+    { count: todayAppts },
+    { count: confirmedAppts },
+    { count: cancelledAppts },
+    { count: upcomingAppts },
+    { count: totalDoctors }
+  ] = await Promise.all([
+    supabase.from("appointments").select("*", { count: "exact", head: true }),
+    supabase.from("appointments").select("*", { count: "exact", head: true }).eq("appointment_date", today),
+    supabase.from("appointments").select("*", { count: "exact", head: true }).eq("status", "confirmed"),
+    supabase.from("appointments").select("*", { count: "exact", head: true }).eq("status", "cancelled"),
+    supabase.from("appointments").select("*", { count: "exact", head: true }).gte("appointment_date", today).eq("status", "confirmed"),
+    supabase.from("doctors").select("*", { count: "exact", head: true })
+  ]);
 
   return NextResponse.json({
-    totalAppointments: totalAppts,
-    todayAppointments: todayAppts,
-    confirmedAppointments: confirmedAppts,
-    cancelledAppointments: cancelledAppts,
-    upcomingAppointments: upcomingAppts,
-    totalDoctors: totalDoctors,
+    totalAppointments: totalAppts || 0,
+    todayAppointments: todayAppts || 0,
+    confirmedAppointments: confirmedAppts || 0,
+    cancelledAppointments: cancelledAppts || 0,
+    upcomingAppointments: upcomingAppts || 0,
+    totalDoctors: totalDoctors || 0,
   });
 }

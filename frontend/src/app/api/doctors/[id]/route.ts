@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revathy_mind_care_secret_2024";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
-  const doctor = db.prepare("SELECT * FROM doctors WHERE id = ?").get(id);
-  if (!doctor) return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  
+  const { data: doctor, error } = await supabase
+    .from("doctors")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !doctor) {
+    return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  }
   
   return NextResponse.json({
     ...doctor,
@@ -32,12 +39,26 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   const { id } = await params;
-  const db = getDb();
-  const doctor = db.prepare("SELECT * FROM doctors WHERE id = ?").get(id);
-  if (!doctor) return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  
+  const { data: doctor, error: findError } = await supabase
+    .from("doctors")
+    .select("*")
+    .eq("id", id)
+    .single();
 
-  db.prepare("DELETE FROM time_slots WHERE doctor_id = ?").run(id);
-  db.prepare("DELETE FROM doctors WHERE id = ?").run(id);
+  if (findError || !doctor) {
+    return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  }
+
+  // time_slots are deleted automatically because of ON DELETE CASCADE
+  const { error: deleteError } = await supabase
+    .from("doctors")
+    .delete()
+    .eq("id", id);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
   
   return NextResponse.json({ message: "Doctor removed successfully" });
 }
